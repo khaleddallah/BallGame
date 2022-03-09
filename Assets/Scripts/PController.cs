@@ -6,25 +6,21 @@ using UnityEngine;
 [RequireComponent(typeof(Rigidbody))]
 public class PController : MonoBehaviour
 {
-    public float normalMoveSpeed=5f;
-    public float quickMoveSpeed=8f;
-
-    public float horizontalSpeed=5f;
+    public float moveSpeed;
     public float rotateSpeed=2.0f;
     public float ballTouchSpeed=5.0f;
     public float shootSpeed=30.0f;
     public float smoothTime=0.1f;
-    
 
+    public float maxAngle = 90.0f;
+    public float maxMovement = 10.0f;
+
+    public float offsetBall = 1f;
     private Rigidbody rb;
     private Vector3 velocity;
-    private float moveSpeed;
 
-
+    private float angleInput;
     private float currentAngle;
-
-    private float forwardInputSmooth;
-    private float forwardInputVelocity;
 
     private float horizontalInputSmooth;
     private float horizontalInputVelocity;
@@ -35,6 +31,7 @@ public class PController : MonoBehaviour
     private Camera cam;
 
     private float initAngle;
+    private Vector3 initPosition;
 
 
     void Start()
@@ -47,6 +44,7 @@ public class PController : MonoBehaviour
         cam = Camera.main;
         initAngle = transform.eulerAngles.y;
         currentAngle = initAngle;
+        initPosition = rb.position;
     }
 
 
@@ -58,17 +56,29 @@ public class PController : MonoBehaviour
 
 
     void InputMove(){
-        // assign the speed
-        if(Input.GetKey(KeyCode.LeftShift)){
-            moveSpeed = quickMoveSpeed;
-        }
-        else{
-            moveSpeed = normalMoveSpeed;
-        }
+        float horizontalInput = -Input.GetAxisRaw("Horizontal");
+        horizontalInputSmooth = Mathf.SmoothDamp(horizontalInputSmooth, horizontalInput, ref horizontalInputVelocity, smoothTime);
+        
+        velocity = Vector3.right * moveSpeed * horizontalInputSmooth;
 
-        Vector3 direction = (new Vector3(-Input.GetAxisRaw("Horizontal"), 0, -Input.GetAxisRaw("Vertical"))).normalized;
-        forwardInputSmooth = Mathf.SmoothDamp(forwardInputSmooth, direction.magnitude, ref forwardInputVelocity, smoothTime);
-        velocity = direction * moveSpeed * forwardInputSmooth;
+
+
+        if(currentBall){
+            angleInput = 0;
+            if(Input.GetKey(KeyCode.Z)) angleInput += -1;
+            if(Input.GetKey(KeyCode.C)) angleInput += 1; 
+
+            float nextAngle = currentAngle + (angleInput*rotateSpeed);
+            if( Mathf.Abs(nextAngle-initAngle) >= maxAngle ){
+                Debug.Log(".,.");
+            }
+            else{
+                currentAngle = nextAngle;
+            }
+        }
+        
+
+
     }
 
 
@@ -86,15 +96,19 @@ public class PController : MonoBehaviour
 
 
     void Move(){
-        rb.MovePosition(rb.position + velocity * Time.deltaTime);
-        // rb.MoveRotation(Quaternion.Euler(Vector3.up* initAngle));
+        float newXPos = rb.position.x + velocity.x * Time.fixedDeltaTime ;
+        if( newXPos<maxMovement && newXPos>-maxMovement ){
+            rb.MovePosition(new Vector3(newXPos, initPosition.y, initPosition.z));
+        }
+        if( (currentAngle-initAngle) <maxAngle && (currentAngle-initAngle)>-maxAngle){
+            rb.MoveRotation(Quaternion.Euler(Vector3.up* currentAngle));
+        }
     }
 
 
     void CtrlBall(){
         if(currentBall){
             if(shootTrig){
-                // shootTrig=false;
                 Debug.Log("Shoot");
                 currentBall.GetComponent<Rigidbody>().AddForce(transform.forward * shootSpeed, ForceMode.Impulse);
             }
@@ -115,16 +129,19 @@ public class PController : MonoBehaviour
             Debug.Log("Ex");
             currentBall = null;
             shootTrig = false;
+            currentAngle = initAngle;
         }
     }
 
     void OnTriggerStay(Collider other){
         if(other.transform.CompareTag("Ball")){
-            Debug.Log("Stay");
+            // Debug.Log("Stay");
             if(!shootTrig){
                 currentBall = other.gameObject;
-                currentBall.GetComponent<Rigidbody>().MoveRotation(Quaternion.Euler(Vector3.up* initAngle));
-                currentBall.GetComponent<Rigidbody>().MovePosition(new Vector3(rb.position.x, rb.position.y, rb.position.z-0.5f));
+                currentBall.transform.position = transform.position + transform.forward*offsetBall; // new Vector3(transform.position.x, currentBall.transform.position.y, transform.position.z-offsetBall);
+                currentBall.transform.eulerAngles = transform.eulerAngles;
+                // currentBall.GetComponent<Rigidbody>().MoveRotation(Quaternion.Euler(Vector3.up* initAngle));
+                // currentBall.GetComponent<Rigidbody>().MovePosition(new Vector3(rb.position.x, rb.position.y, rb.position.z-0.5f));
             }
         }
     }
@@ -135,10 +152,6 @@ public class PController : MonoBehaviour
             // other.gameObject.GetComponent<Ball>().Reflect(transform.forward);
         }
     }
-
-
-
-
 
 
 }
